@@ -1,4 +1,4 @@
-//! # Url Encoded Data manipulation
+//! # Ergonomic, Versatile Url Encoded Data Manipulator
 //! Manipulate data of `application/x-www-form-urlencoded` format,
 //! eg:
 //!     * query_string of a url
@@ -42,7 +42,7 @@
 //! ]
 //! .iter()
 //! {
-//!     let q = UrlEncodedDataPairIterator::from(*s);
+//!     let q = UrlEncodedDataPairScanner::from(*s);
 //!     println!("got qs: {}", q);
 //!
 //!     let pairs_expected_as_str = [
@@ -145,7 +145,7 @@
 //!     ]
 //!         .iter()
 //!     {
-//!         let q = UrlEncodedData::parse_from_str(s);
+//!         let q = UrlEncodedData::parse_from_data_str(s);
 //!         // let mut q = UrlEncodedData::prepare(url_1);
 //!         // let q = q.parse();
 //!         println!("got qs: {}", q);
@@ -250,7 +250,7 @@ use url::form_urlencoded::Parse;
 pub type Pair<'a> = (Cow<'a, str>, Cow<'a, str>);
 // type StringPair = (String, String);
 type StrPair<'a> = (&'a str, &'a str);
-// type RefPair<'a> = (&'a Cow<'a, str>, &'a Cow<'a, str>);
+type RefPair<'a> = (&'a Cow<'a, str>, &'a Cow<'a, str>);
 
 /// # Algorithm
 /// 1. If param: `str` contains '?', then url_encoded_string = <there_after>.trim_start('?')
@@ -318,18 +318,17 @@ pub fn stringify<'a>(pairs: &'a [StrPair<'a>]) -> String {
     s.finish()
 }
 
-// Wrapper about url_encoded_string pair: (key, value).
-// key, value are decoded in final.
+// A scanner iterating (decoded_key, decoded_value) pair in order.
 #[derive(Clone)]
-pub struct UrlEncodedDataPairIterator<'a> {
+pub struct UrlEncodedDataPairScanner<'a> {
     pub raw: &'a str,
     pairs_iterator: Parse<'a>,
 }
 
-impl<'a> Display for UrlEncodedDataPairIterator<'a> {
+impl<'a> Display for UrlEncodedDataPairScanner<'a> {
     /// ```rust
     /// use url_encoded_data::*;
-    /// let q = UrlEncodedDataPairIterator::from("abcd=efg");
+    /// let q = UrlEncodedDataPairScanner::from("abcd=efg");
     /// let display = format!("got qs: {}", q);
     /// assert!(display.len() > 3)
     /// ```
@@ -339,7 +338,7 @@ impl<'a> Display for UrlEncodedDataPairIterator<'a> {
 }
 
 /// # Lazy iterator yielding pairs
-impl<'a> UrlEncodedDataPairIterator<'a> {
+impl<'a> UrlEncodedDataPairScanner<'a> {
     /// # Iterator of pairs
     ///
     /// # example:
@@ -354,7 +353,7 @@ impl<'a> UrlEncodedDataPairIterator<'a> {
     /// ]
     /// .iter()
     /// {
-    ///     let q = UrlEncodedDataPairIterator::from(*s);
+    ///     let q = UrlEncodedDataPairScanner::from(*s);
     ///     println!("got qs: {}", q);
     ///
     ///     let pairs_expected_as_str = [
@@ -374,7 +373,7 @@ impl<'a> UrlEncodedDataPairIterator<'a> {
     ///     }
     /// }
     /// ```
-    pub fn iter(&'a self) -> impl Iterator<Item = Pair<'a>> {
+    pub fn iter(&'a self) -> impl Iterator<Item=Pair<'a>> {
         self.pairs_iterator.into_iter()
     }
 
@@ -384,7 +383,7 @@ impl<'a> UrlEncodedDataPairIterator<'a> {
     ///
     /// ```rust
     /// use url_encoded_data::*;
-    /// use url_encoded_data::UrlEncodedDataPairIterator;
+    /// use url_encoded_data::UrlEncodedDataPairScanner;
     /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
     /// for s in [
     ///     qs.as_str(),
@@ -393,7 +392,7 @@ impl<'a> UrlEncodedDataPairIterator<'a> {
     /// ]
     /// .iter()
     /// {
-    ///     let q = UrlEncodedDataPairIterator::parse_from_str(s);
+    ///     let q = UrlEncodedDataPairScanner::parse_from_str(s);
     ///     println!("got qs: {}", q);
     ///
     ///     let pairs_expected_as_str = [
@@ -423,11 +422,11 @@ impl<'a> UrlEncodedDataPairIterator<'a> {
     }
 }
 
-impl<'a> From<&'a str> for UrlEncodedDataPairIterator<'a> {
+impl<'a> From<&'a str> for UrlEncodedDataPairScanner<'a> {
     /// # UrlEncodedDataPairIterator from &str
     /// ```rust
     /// use url_encoded_data::*;
-    /// let q = UrlEncodedDataPairIterator::from("abcd=efg");
+    /// let q = UrlEncodedDataPairScanner::from("abcd=efg");
     /// let first_pair = q.iter().next().unwrap();
     /// let (k, v) = first_pair;
     /// assert_eq!(k.as_ref(), "abcd");
@@ -441,12 +440,33 @@ impl<'a> From<&'a str> for UrlEncodedDataPairIterator<'a> {
 /// Represents the form-urlencoded data: eg: url query string, or application/x-www-form-urlencoded of the body.
 #[derive(Clone)]
 pub struct UrlEncodedData<'a> {
-    // un-escaped raw query string extracted from input
-    pub raw: &'a str,
+    // un-escaped raw data string extracted from input
+    pub data_str: &'a str,
 
-    pairs: Vec<Pair<'a>>,
-    // todo: cache map in future.
+    // more consistent displaying to old str, if selected
+    original_keys_in_order: Vec<Cow<'a, str>>,
+
+    // map: 1 -> many, one key to multiple values.
+    map: HashMap<Cow<'a, str>, Vec<Cow<'a, str>>>,
+
+    // pairs: Vec<Pair<'a>>,
 }
+
+// /// Yields an iterator with Item = (key, value) pair
+// ///  Item = (Cow<'a, str>, Cow<'a, str>)
+// impl<'a> Iterator for UrlEncodedData<'a> {
+//     type Item = &'a RefPair<'a> ;
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         self.map.iter().flat_map(|(k, v)| {
+//             for i in v {
+//                 return Some((k, i));
+//             }
+//         });
+//         None
+//
+//     }
+// }
 
 impl<'a> From<&'a str> for UrlEncodedData<'a> {
     /// # UrlEncodedData from &str
@@ -461,7 +481,7 @@ impl<'a> From<&'a str> for UrlEncodedData<'a> {
     fn from(s: &'a str) -> Self {
         // Self::prepare(s).parse()
         // unimplemented!()
-        Self::parse_from_str(s)
+        Self::parse_from_data_str(s)
     }
 }
 
@@ -473,7 +493,7 @@ impl<'a> Display for UrlEncodedData<'a> {
     /// assert!(display.len() > 3)
     /// ```
     fn fmt(&self, f: &mut Formatter<'_>) -> ::std::fmt::Result {
-        write!(f, "{}, {:?}", self.raw, self.pairs)
+        write!(f, "{}, {:?}", self.data_str, self.map)
     }
 }
 
@@ -509,17 +529,26 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::*;
     /// use url_encoded_data::UrlEncodedData;
-    /// let q = UrlEncodedData::parse_from_str("abcd=efg");
+    /// let q = UrlEncodedData::parse_from_data_str("abcd=efg");
     /// let first_pair = q.iter().next().unwrap();
     /// let (k, v) = first_pair;
     /// assert_eq!(k.as_ref(), "abcd");
     /// assert_eq!(v.as_ref(), "efg");
     /// ```
-    pub fn parse_from_str(s: &'a str) -> Self {
-        let raw = extract_url_encoded_string(s);
-        let parse = url_lib::form_urlencoded::parse(raw.as_bytes());
-        let pairs = parse.into_iter().collect();
-        Self { raw, pairs }
+    pub fn parse_from_data_str(s: &'a str) -> Self {
+        let data_str = extract_url_encoded_string(s);
+        let parse = url_lib::form_urlencoded::parse(data_str.as_bytes());
+        let pairs: Vec<Pair> = parse.into_iter().collect();
+        let mut map: HashMap<Cow<'_, str>, Vec<Cow<'_, str>>> = HashMap::new();
+        let mut original_keys_in_order: Vec<Cow<str>> = vec![];
+        for (k, v) in pairs {
+            map.entry(k.clone()).or_default().push(v);
+            if !original_keys_in_order.contains(&k) {
+                original_keys_in_order.push(k);
+            }
+        }
+
+        Self { data_str, map, original_keys_in_order }
     }
 
     /// # As pairs slice
@@ -538,7 +567,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ]
     /// .iter()
     /// {
-    ///     let q = UrlEncodedData::parse_from_str(s);
+    ///     let q = UrlEncodedData::parse_from_data_str(s);
     ///     // let mut q = UrlEncodedData::prepare(url_1);
     ///     // let q = q.parse();
     ///     println!("got qs: {}", q);
@@ -570,15 +599,146 @@ impl<'a> UrlEncodedData<'a> {
     /// assert_eq!(str_vec[0], ("hello", "你好"));
     /// assert_eq!(str_vec[1], ("world", "世界"));
     /// ```
-    pub fn as_pairs(&'a self) -> &'a [Pair<'a>] {
-        self.pairs.as_slice()
+    pub fn as_pairs(&'a self) -> Vec<RefPair<'a>> {
+        let mut vector = vec![];
+        for (k, v) in self.map.iter() {
+            for i in v.iter() {
+                vector.push((k, i));
+            }
+        }
+        vector
+    }
+
+    /// # As pairs slice
+       ///
+       /// # example:
+       ///
+       /// ```rust
+       /// use url_encoded_data::*;
+       /// use url_encoded_data::*;
+       /// use url_encoded_data::UrlEncodedData;
+       /// let s = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
+       /// let q = UrlEncodedData::parse_from_data_str(s);
+       /// // let mut q = UrlEncodedData::prepare(url_1);
+       /// // let q = q.parse();
+       /// println!("got qs: {}", q);
+       ///
+       /// let pairs_expected_as_str = [
+       ///     ("a", "1"),
+       ///     ("b", "2"),
+       ///     ("c", "3"),
+       ///     ("c", "4"),
+       ///     ("key_without_value", ""),
+       ///     ("", "value_without_key"),
+       /// ];
+       ///
+       ///
+       /// for (i, (k, v)) in q.as_pairs().iter().enumerate() {
+       ///     let (k_, v_) = pairs_expected_as_str[i];
+       ///     assert_eq!(k.as_ref(), k_);
+       ///     assert_eq!(v.as_ref(), v_);
+       /// }
+       /// }
+       /// ```
+       ///
+       /// ## An example of decoding:
+       /// ```rust
+       /// use url_encoded_data::*;
+       /// let s = "hello=%e4%bd%a0%e5%a5%bd&world=%e4%b8%96%e7%95%8c";
+       /// let qs = UrlEncodedData::from(s);
+       /// let str_vec: Vec<_> = qs.as_pairs().into_iter().map(|(k, v)| (k.as_ref(), v.as_ref())).collect();
+       /// assert_eq!(str_vec[0], ("hello", "你好"));
+       /// assert_eq!(str_vec[1], ("world", "世界"));
+       /// ```
+       // todo: found a better a way to return Vec<RefPair>, but i have no time to do it now.
+    pub fn as_pairs_of_original_order(&'a self) -> Vec<Pair<'a>> {
+        let mut vector = vec![];
+        let mut clone = self.map.clone();
+        for key in self.original_keys_in_order.iter() {
+            if let Some(v) = clone.remove(key) {
+                for i in v {
+                    vector.push((key.clone(), i));
+                }
+            }
+        }
+
+        // push left pairs
+        for (k, v) in clone.iter() {
+            for i in v.iter() {
+                vector.push((k.clone(), i.clone()));
+            }
+        }
+        vector
+    }
+
+
+    /// # As pairs slice
+   ///
+   /// # example:
+   ///
+   /// ```rust
+   /// use url_encoded_data::*;
+   /// use url_encoded_data::*;
+   /// use url_encoded_data::UrlEncodedData;
+   /// let s = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
+   /// let q = UrlEncodedData::parse_from_data_str(s);
+   /// // let mut q = UrlEncodedData::prepare(url_1);
+   /// // let q = q.parse();
+   /// println!("got qs: {}", q);
+   ///
+   /// let pairs_expected_as_str = [
+   ///     ("a", "1"),
+   ///     ("b", "2"),
+   ///     ("c", "3"),
+   ///     ("c", "4"),
+   ///     ("key_without_value", ""),
+   ///     ("", "value_without_key"),
+   /// ];
+   ///
+   ///
+   /// for (i, (k, v)) in q.as_pairs().iter().enumerate() {
+   ///     let (k_, v_) = pairs_expected_as_str[i];
+   ///     assert_eq!(k.as_ref(), k_);
+   ///     assert_eq!(v.as_ref(), v_);
+   /// }
+   /// }
+   /// ```
+   ///
+   /// ## An example of decoding:
+   /// ```rust
+   /// use url_encoded_data::*;
+   /// let s = "hello=%e4%bd%a0%e5%a5%bd&world=%e4%b8%96%e7%95%8c";
+   /// let qs = UrlEncodedData::from(s);
+   /// let str_vec: Vec<_> = qs.as_pairs().into_iter().map(|(k, v)| (k.as_ref(), v.as_ref())).collect();
+   /// assert_eq!(str_vec[0], ("hello", "你好"));
+   /// assert_eq!(str_vec[1], ("world", "世界"));
+   /// ```
+    pub fn as_pairs_of_sorted_order(&'a self) -> Vec<RefPair<'a>> {
+        let mut vector = vec![];
+
+        let mut keys_in_sorted_order: Vec<_> = self.map.keys().collect();
+        keys_in_sorted_order.sort_unstable();
+
+        for (k, v) in self.map.iter() {
+            for i in v.iter() {
+                vector.push((k, i));
+            }
+        }
+        vector
     }
 
     /// Yields an iterator with Item = (key, value) pair
     ///  Item = (Cow<'a, str>, Cow<'a, str>)
-    pub fn iter(&'a self) -> impl Iterator<Item = &Pair<'a>> {
-        // let c = self.as_pairs().iter();
+    pub fn iter(&'a self) -> impl Iterator<Item=RefPair<'a>> {
         self.as_pairs().into_iter()
+        // // let c = self.as_pairs().iter();
+        // self.map.iter().flat_map(|(k, v)| {
+        //     let mut vector = vec![];
+        //     for i in v {
+        //         vector.push((k, i));
+        //     }
+        //     vector.iter()
+        // })
     }
 
     // pub fn as_str_pairs(&'a self) -> Vec<(&'a str, &'a str)> {
@@ -613,7 +773,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ]
     /// .iter()
     /// {
-    ///     let q = UrlEncodedData::parse_from_str(s);
+    ///     let q = UrlEncodedData::parse_from_data_str(s);
     ///     // let mut q = UrlEncodedData::prepare(url_1);
     ///     // let q = q.parse();
     ///     println!("got qs: {}", q);
@@ -662,7 +822,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_str(s);
+    ///         let q = UrlEncodedData::parse_from_data_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         //
@@ -691,12 +851,8 @@ impl<'a> UrlEncodedData<'a> {
     /// eg: "a=b&a=c&d=&e" => {"a" : ["b", "c"], "d: [""], "": ["e"]}
     pub fn as_map_of_single_key_to_multiple_values(
         &'a self,
-    ) -> HashMap<&Cow<'a, str>, Vec<&Cow<'a, str>>> {
-        let mut m: HashMap<&Cow<'_, str>, Vec<&Cow<'_, str>>> = HashMap::new();
-        for (k, v) in self.as_pairs() {
-            m.entry(k).or_default().push(v);
-        }
-        m
+    ) -> &'a HashMap<Cow<'a, str>, Vec<Cow<'a, str>>> {
+        &self.map
     }
 
     /// # As Map of Single-key to First Occurrence Value
@@ -720,7 +876,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_str(s);
+    ///         let q = UrlEncodedData::parse_from_data_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         //
@@ -790,7 +946,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_str(s);
+    ///         let q = UrlEncodedData::parse_from_data_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         let map_of_last_occurrence_value_expected = hashmap! {
@@ -844,7 +1000,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_str(s);
+    ///         let q = UrlEncodedData::parse_from_data_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         assert_eq!(q.get_multiple_values("a").unwrap(), vec!["1"]);
@@ -885,7 +1041,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_str(s);
+    ///         let q = UrlEncodedData::parse_from_data_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         assert_eq!(q.get_first_occurrence_value("a").unwrap(), "1");
@@ -920,7 +1076,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_str(s);
+    ///         let q = UrlEncodedData::parse_from_data_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         assert_eq!(q.get_last_occurrence_value("a").unwrap(), "1");
@@ -951,7 +1107,7 @@ mod test_qs {
         // println!("got qs: {}", q);
 
         // let mut q = UrlEncodedData::from(url_1);
-        let q = UrlEncodedData::parse_from_str(url_1);
+        let q = UrlEncodedData::parse_from_data_str(url_1);
         // let mut q = UrlEncodedData::prepare(url_1);
         // let q = q.parse();
         println!("got qs: {}", q);
@@ -967,9 +1123,9 @@ mod test_qs {
             ("https://abc.com/?".to_string() + qs.as_str()).as_str(),
             ("https://abc.com/?????".to_string() + qs.as_str()).as_str(),
         ]
-        .iter()
+            .iter()
         {
-            let q = UrlEncodedData::parse_from_str(s);
+            let q = UrlEncodedData::parse_from_data_str(s);
             // let mut q = UrlEncodedData::prepare(url_1);
             // let q = q.parse();
             println!("got qs: {}", q);
@@ -983,7 +1139,7 @@ mod test_qs {
                 ("", "value_without_key"),
             ];
 
-            for (i, (k, v)) in q.pairs.iter().enumerate() {
+            for (i, (k, v)) in q.as_pairs().iter().enumerate() {
                 let (k_, v_) = pairs_expected_as_str[i];
                 assert_eq!(k.as_ref(), k_);
                 assert_eq!(v.as_ref(), v_);
@@ -1005,7 +1161,7 @@ mod test_qs {
             for (k1, v1) in map {
                 let v2 = map_of_multiple_values_expected.get(k1.as_ref()).unwrap();
                 for (i, v2i) in v2.into_iter().enumerate() {
-                    assert_eq!(v1[i], v2i);
+                    assert_eq!(v1[i].as_ref(), *v2i);
                 }
             }
 
