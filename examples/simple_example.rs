@@ -13,10 +13,12 @@ fn simple_example() -> anyhow::Result<()> {
     ]
     .iter()
     {
-        let q = UrlEncodedData::parse_from_str(s);
+        let q = UrlEncodedData::parse_from_data_str(s);
         // let mut q = UrlEncodedData::prepare(url_1);
         // let q = q.parse();
         println!("got qs: {}", q);
+        assert_eq!(q.keys_length(), 5);
+        assert_eq!(q.len(), 6);
 
         let pairs_expected_as_str = [
             ("a", "1"),
@@ -27,7 +29,7 @@ fn simple_example() -> anyhow::Result<()> {
             ("", "value_without_key"),
         ];
 
-        for (i, (k, v)) in q.as_pairs().iter().enumerate() {
+        for (i, (k, v)) in q.as_pairs_of_original_order().iter().enumerate() {
             let (k_, v_) = pairs_expected_as_str[i];
             assert_eq!(k.as_ref(), k_);
             assert_eq!(v.as_ref(), v_);
@@ -42,14 +44,14 @@ fn simple_example() -> anyhow::Result<()> {
             "" => vec!("value_without_key"),
         };
         dbg!("as_map_of_single_key_to_multiple_values");
-        println!("as_map_of_single_key_to_multiple_values");
+        // println!("as_map_of_single_key_to_multiple_values");
         let map = q.as_map_of_single_key_to_multiple_values();
         assert_eq!(map.len(), 5);
 
         for (k1, v1) in map {
             let v2 = map_of_multiple_values_expected.get(k1.as_ref()).unwrap();
             for (i, v2i) in v2.into_iter().enumerate() {
-                assert_eq!(v1[i], v2i);
+                assert_eq!(v1[i].as_ref(), *v2i);
             }
         }
 
@@ -72,9 +74,9 @@ fn simple_example() -> anyhow::Result<()> {
             assert_eq!(&v1, v2); // ok, signifies comparing with references, it will auto-dereference to compare the value, which is more convenient
             let ptr1 = v1 as *const Cow<'_, str> as *const usize;
             let ptr2 = v2 as *const &str as *const usize;
-            let msg = format!("{:p}, {:p}", ptr1, ptr2);
-            dbg!(msg);
-            println!("{:p}, {:p}", ptr1, ptr2);
+            // let msg = format!("{:p}, {:p}", ptr1, ptr2);
+            // dbg!(msg);
+            // println!("{:p}, {:p}", ptr1, ptr2);
             assert!(!std::ptr::eq(ptr1, ptr2));
             assert_eq!(*v1, **v2); // ok, value compare
         }

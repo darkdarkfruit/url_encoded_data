@@ -1,15 +1,140 @@
 # url_encoded_data
 
-## Url Encoded Data manipulation
+## Ergonomic, Versatile Url-Encoded-Data Manipulator
 Manipulate data of `application/x-www-form-urlencoded` format,
 eg:
-    * query_string of a url
+    * query_string of a url (eg: '?a=1&b=2&c=3&c=3&e=5')
     * http content-type with: `application/x-www-form-urlencoded`
+
+## Features:
+* convenient api:
+    * as_pairs
+    * as_pairs_of_original_order
+    * as_paris_of_sorted_order
+
+    * as_map_of_single_key_to_multiple_values
+    * as_map_of_single_key_to_first_occurrence_value
+    * as_map_of_single_key_to_last_occurrence_value
+
+    * set
+    * push
+    * clear
+
+    * get
+    * get_first
+    * get_last
+
+    * keys
+    * len // pair length
+    * keys_length
+    * to_string
+
+    * // consult doc for more
+
+* Automatic unicode encoding/decoding
+
 
 ## Terminology
 * Pair: a (key, format) tuple, `(Cow<'a, str>, Cow<'a, str>)`
 * url encoded string: a string which is encoded by standards of `application/x-www-form-urlencoded`
 
+## Notes
+* UrlEncodedDataPairScanner: Pairs Iterator, yields pairs only. (high performant)
+* UrlEncodedData: eager version
+
+## Sample
+### Sample of url query string
+```rust
+use url_encoded_data::UrlEncodedData;
+use std::borrow::Cow;
+// note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
+let url = "https://google.com/?q=rust&ei=code";
+let q = UrlEncodedData::parse_from_data_str(url);
+// q.to_string(), best performance, (key, value) pairs are in un-deterministic order.
+assert_eq!(q.to_string_of_original_order(), "https://google.com/?q=rust&ei=code");
+assert_eq!(q.to_string_of_sorted_order(), "https://google.com/?ei=code&q=rust");
+
+// pairs length
+assert_eq!(q.len(), 2);
+
+// keys length
+assert_eq!(q.keys_length(), 2);
+
+// keys
+assert!(q.keys().contains(&"q"));
+assert!(q.keys().contains(&"ei"));
+
+
+// let's do some manipulation
+let url = "https://google.com/?q=rust&ei=code";
+let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
+let mut q = q; // const -> mut
+
+// set ->
+let q = q.set("vector", &vec!["1", "2"])
+         .set_one("a", "1")
+         .set_one("b", "2")
+         .set_one("hello", "world")
+         .set("whole", &vec!["world", "世界"]) // utf-8, auto encoding and decoding
+         .delete("ei") // ei is deleted
+         .push("b", "3"); // now b is: vec!["1", "2"]
+let q = q; // mut -> const
+
+// q.keys() // performant
+assert_eq!(q.keys_of_original_order()[0].as_ref(), "q");
+
+// something like: https://google.com/?b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+println!("{}", q.to_string());
+
+// https://google.com/?q=rust-lang&b=2&b=3&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+println!("{}", q.to_string_of_original_order());
+
+// https://google.com/?a=1&b=2&b=3&hello=world&q=rust-lang&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+println!("{}", q.to_string_of_sorted_order());
+
+```
+### Sample of encoded data in www/x-www-form-urlencoded
+```rust
+use url_encoded_data::UrlEncodedData;
+use std::borrow::Cow;
+// note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
+let s = "b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C";
+let q = UrlEncodedData::parse_from_data_str(s);
+// q.to_string(), best performance, (key, value) pairs are in un-deterministic order.
+assert_eq!(q.to_string_of_original_order(), s);
+
+// [("hello", "world"), ("vector", "1"), ("vector", "2"), ("whole", "world"), ("whole", "世界"), ("b", "2"), ("b", "3"), ("q", "rust-lang"), ("a", "1")]
+println!("{:?}", q.as_pairs());
+
+// {"a": ["1"], "hello": ["world"], "b": ["2", "3"], "q": ["rust-lang"], "whole": ["world", "世界"], "vector": ["1", "2"]}
+println!("{:?}", q.as_map_of_single_key_to_multiple_values());
+
+// {"b": "2", "a": "1", "q": "rust-lang", "whole": "world", "hello": "world", "vector": "1"}
+println!("{:?}", q.as_map_of_single_key_to_first_occurrence_value());
+
+// {"q": "rust-lang", "whole": "世界", "vector": "2", "a": "1", "b": "3", "hello": "world"}
+println!("{:?}", q.as_map_of_single_key_to_last_occurrence_value());
+// assert!(false);
+
+```
+
+### Sample of performant pairs iterator: UrlEncodedDataPairScanner (Lazy version)
+```rust
+use url_encoded_data::{UrlEncodedData, UrlEncodedDataPairScanner};
+use std::borrow::Cow;
+// note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
+let s = "b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C";
+let q = UrlEncodedDataPairScanner::from(s);
+// same:
+// let q = UrlEncodedDataPairScanner::parse_from_data_str(s);
+
+for (key, value) in q.iter() {
+    // k, v are decoded
+    // process the pair: (key, value)
+}
+
+```
+###
 ## Basic apis
 
 ### strigify: Stringify pairs to url encoded String
@@ -44,7 +169,7 @@ for s in [
 ]
 .iter()
 {
-    let q = UrlEncodedDataPairIterator::from(*s);
+    let q = UrlEncodedDataPairScanner::from(*s);
     println!("got qs: {}", q);
 
     let pairs_expected_as_str = [
@@ -117,13 +242,13 @@ use std::borrow::Cow;
 let s = "a=1&b=2&a=3";
 let ued = UrlEncodedData::from(s);
 
-assert_eq!(ued.get_multiple_values("a").unwrap(), vec!["1".to_string(), "3".to_string()]);
+assert_eq!(ued.get_multiple_values("a").unwrap().iter().map(|x| x.as_ref()).collect::<Vec<_>>(), vec!["1", "3"]);
 
 // get first occurrence value
-assert_eq!(ued.get_first_occurrence_value("a").unwrap(), "1".to_string());
+assert_eq!(ued.get_first_occurrence_value("a").unwrap().as_ref(), "1");
 
 // get last occurrence value
-assert_eq!(ued.get_last_occurrence_value("a").unwrap(), "3".to_string());
+assert_eq!(ued.get_last_occurrence_value("a").unwrap().as_ref(), "3");
 
 // no existed key
 assert!(ued.get_last_occurrence_value("not-existed-key").is_none());
@@ -147,7 +272,7 @@ let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
     ]
         .iter()
     {
-        let q = UrlEncodedData::parse_from_str(s);
+        let q = UrlEncodedData::parse_from_data_str(s);
         // let mut q = UrlEncodedData::prepare(url_1);
         // let q = q.parse();
         println!("got qs: {}", q);
@@ -161,7 +286,7 @@ let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
             ("", "value_without_key"),
         ];
 
-        for (i, (k, v)) in q.as_pairs().iter().enumerate() {
+        for (i, (k, v)) in q.as_pairs_of_original_order().iter().enumerate() {
             let (k_, v_) = pairs_expected_as_str[i];
             assert_eq!(k.as_ref(), k_);
             assert_eq!(v.as_ref(), v_);
@@ -183,7 +308,7 @@ let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
         for (k1, v1) in map {
             let v2 = map_of_multiple_values_expected.get(k1.as_ref()).unwrap();
             for (i, v2i) in v2.into_iter().enumerate() {
-                assert_eq!(v1[i], v2i);
+                assert_eq!(v1[i].to_string(), v2i.to_string());
             }
         }
 
