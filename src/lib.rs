@@ -82,7 +82,7 @@
 //! assert_eq!(q.keys_of_original_order()[0].as_ref(), "q");
 //!
 //! // something like: https://google.com/?b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
-//! println!("{}", q.to_string());
+//! println!("{}", q.to_final_string());
 //!
 //! // https://google.com/?q=rust-lang&b=2&b=3&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
 //! println!("{}", q.to_string_of_original_order());
@@ -366,8 +366,7 @@ extern crate maplit;
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
-use url;
+use std::fmt::{Debug, Display, Formatter};
 use url as url_lib;
 use url::form_urlencoded::Parse;
 
@@ -401,8 +400,8 @@ pub fn extract_url_encoded_string(s: &str) -> &str {
     match found {
         None => s,
         Some(idx) => {
-            let left = s[idx..s.len()].trim_start_matches('?'); // use the str behind
-            left
+            // use the str behind
+            s[idx..s.len()].trim_start_matches('?')
         }
     }
 }
@@ -475,7 +474,7 @@ pub fn split_url_encoded_string(s: &str) -> (&str, &str) {
 /// Panics if called more than once.
 pub fn stringify<'a>(pairs: &'a [StrPair<'a>]) -> String {
     let mut s = url_lib::form_urlencoded::Serializer::new(String::new());
-    for &(k, v) in pairs.into_iter() {
+    for &(k, v) in pairs.iter() {
         s.append_pair(k, v);
     }
     s.finish()
@@ -538,7 +537,7 @@ impl<'a> UrlEncodedDataPairScanner<'a> {
     /// }
     /// ```
     pub fn iter(&'a self) -> impl Iterator<Item = Pair<'a>> {
-        self.pairs_iterator.into_iter()
+        self.pairs_iterator
     }
 
     /// # Iterator of pairs
@@ -604,7 +603,7 @@ impl<'a> From<&'a str> for UrlEncodedDataPairScanner<'a> {
 }
 
 /// Represents the form-urlencoded data: eg: url query string, or application/x-www-form-urlencoded of the body.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct UrlEncodedData<'a> {
     // original prefix of the input string before query_string.
     prefix: &'a str,
@@ -661,15 +660,7 @@ impl<'a> Display for UrlEncodedData<'a> {
     /// assert!(display.len() > 3)
     /// ```
     fn fmt(&self, f: &mut Formatter<'_>) -> ::std::fmt::Result {
-        write!(
-            f,
-            "prefix: {:?}, old str: {:?}; old keys: {:?}; current map: {:?}; current str: {:?}",
-            self.prefix,
-            self.original_data_str,
-            self.original_keys_in_order,
-            self.map,
-            self.to_string_of_original_order()
-        )
+        write!(f, "{}", self.to_final_string())
     }
 }
 
@@ -983,22 +974,22 @@ impl<'a> UrlEncodedData<'a> {
     /// let encoded = stringify(&[("hello", "你好"), ("world", "世界")]);
     /// assert_eq!(encoded, "hello=%E4%BD%A0%E5%A5%BD&world=%E4%B8%96%E7%95%8C");
     /// ```
-    pub fn stringify(pairs: &Vec<RefPair>) -> String {
+    pub fn stringify(pairs: &[RefPair]) -> String {
         let mut s = url_lib::form_urlencoded::Serializer::new(String::new());
-        for (k, v) in pairs.into_iter() {
+        for (k, v) in pairs.iter() {
             s.append_pair(k.as_ref(), v.as_ref());
         }
         s.finish()
     }
 
-    /// to string
+    /// to final string, same as `print!("{}", self)`
     /// ``` rust
     /// use url_encoded_data::UrlEncodedData;
     /// let url = "https://google.com/?q=rust";
     /// let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
-    /// assert_eq!(q.to_string(), "https://google.com/?q=rust-lang")
+    /// assert_eq!(q.to_final_string(), "https://google.com/?q=rust-lang")
     /// ```
-    pub fn to_string(&self) -> String {
+    pub fn to_final_string(&self) -> String {
         self.prefix.to_owned() + &Self::stringify(&self.as_pairs())
     }
 
@@ -1251,7 +1242,7 @@ impl<'a> UrlEncodedData<'a> {
     pub fn get_first_occurrence_value<'b>(&'a self, key: &'b str) -> Option<&'a Cow<str>> {
         self.as_map_of_single_key_to_first_occurrence_value()
             .get(&Cow::from(key))
-            .map(|&v| v)
+            .copied()
         // .map(|v| v.to_string())
     }
 
@@ -1279,7 +1270,7 @@ impl<'a> UrlEncodedData<'a> {
     pub fn get_last_occurrence_value<'b>(&'a self, key: &'b str) -> Option<&'a Cow<str>> {
         self.as_map_of_single_key_to_last_occurrence_value()
             .get(&Cow::from(key))
-            .map(|&v| v)
+            .copied()
     }
 
     /// # set a key with value slice
@@ -1287,13 +1278,11 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// fn main() {
-    ///     use url_encoded_data::UrlEncodedData;
-    ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    ///     let q = UrlEncodedData::parse_from_data_str(qs).set("a", &["100", "200"]);
+    /// use url_encoded_data::UrlEncodedData;
+    /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
+    /// let q = UrlEncodedData::parse_from_data_str(qs).set("a", &["100", "200"]);
     ///
-    ///     assert_eq!(q.get("a").unwrap(), vec!["100", "200"]);
-    /// }
+    /// assert_eq!(q.get("a").unwrap(), vec!["100", "200"]);
     /// ```
     pub fn set(mut self, key: &'a str, value: &[&'a str]) -> Self {
         self.map.insert(
@@ -1308,13 +1297,11 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// fn main() {
-    ///     use url_encoded_data::UrlEncodedData;
-    ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    ///     let q = UrlEncodedData::parse_from_data_str(qs).set_one("a", "100");
+    /// use url_encoded_data::UrlEncodedData;
+    /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
+    /// let q = UrlEncodedData::parse_from_data_str(qs).set_one("a", "100");
     ///
-    ///     assert_eq!(q.get_first("a").unwrap(), "100");
-    /// }
+    /// assert_eq!(q.get_first("a").unwrap(), "100");
     /// ```
     pub fn set_one(mut self, key: &'a str, value: &'a str) -> Self {
         self.map.insert(Cow::from(key), vec![Cow::from(value)]);
@@ -1326,15 +1313,13 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// fn main() {
-    ///     use url_encoded_data::UrlEncodedData;
-    ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    ///     let q = UrlEncodedData::parse_from_data_str(qs).push("a", "100").push("hello", "world");
+    /// use url_encoded_data::UrlEncodedData;
+    /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
+    /// let q = UrlEncodedData::parse_from_data_str(qs).push("a", "100").push("hello", "world");
     ///
-    ///     assert_eq!(q.get("a").unwrap(), vec!["1", "100"]);
-    ///     assert_eq!(q.get("hello").unwrap(), vec!["world"]);
-    ///     assert_eq!(q.get_first("hello").unwrap(), "world");
-    /// }
+    /// assert_eq!(q.get("a").unwrap(), vec!["1", "100"]);
+    /// assert_eq!(q.get("hello").unwrap(), vec!["world"]);
+    /// assert_eq!(q.get_first("hello").unwrap(), "world");
     /// ```
     pub fn push(mut self, key: &'a str, value: &'a str) -> Self {
         match self.map.entry(Cow::from(key)) {
@@ -1382,12 +1367,10 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// fn main() {
-    ///     use url_encoded_data::UrlEncodedData;
-    ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    ///     let q = UrlEncodedData::parse_from_data_str(qs);
-    ///     assert_eq!(q.get("c").unwrap(), vec!["3", "4"]);
-    /// }
+    /// use url_encoded_data::UrlEncodedData;
+    /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
+    /// let q = UrlEncodedData::parse_from_data_str(qs);
+    /// assert_eq!(q.get("c").unwrap(), vec!["3", "4"]);
     /// ```
     pub fn get<'b>(&'a self, key: &'b str) -> Option<Vec<&'a str>> {
         Some(
@@ -1463,7 +1446,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```
     ///
     // pub fn delete<'b>(&'a mut self, key: &'a str) -> Option<Vec<Cow<'a, str>>> {
-    pub fn delete<'b>(mut self, key: &'a str) -> Self {
+    pub fn delete(mut self, key: &'a str) -> Self {
         self.map.remove(&Cow::from(key));
         self
     }
@@ -1532,6 +1515,25 @@ impl<'a> UrlEncodedData<'a> {
         self.map.len()
     }
 
+    /// # len of pairs
+    ///
+    /// # example:
+    ///
+    /// ```rust
+    /// use url_encoded_data::UrlEncodedData;
+    /// let s = "a=1&b=2&c=3&c=4&d=5";
+    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// assert!(!q.is_empty());
+    /// let mut q = q; // const -> mut
+    /// let q = q.clear();
+    /// # let q = q; // mut -> const
+    /// assert!(q.is_empty());
+    /// ```
+    ///
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// # length of keys
     ///
     /// # example:
@@ -1568,7 +1570,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```
     ///
     pub fn keys_of_original_order(&self) -> Vec<Cow<str>> {
-        let mut ks: Vec<_> = self.map.keys().map(|x| x.clone()).collect();
+        let mut ks: Vec<_> = self.map.keys().cloned().collect();
         let mut elements_need_to_insert_at_front = vec![];
         for i in self.original_keys_in_order.iter() {
             if let Some(pos) = ks.iter().position(|x| x == i) {
@@ -1595,7 +1597,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```
     ///
     pub fn keys_of_sorted_order(&self) -> Vec<Cow<str>> {
-        let mut ks: Vec<_> = self.map.keys().map(|x| x.clone()).collect();
+        let mut ks: Vec<_> = self.map.keys().cloned().collect();
         ks.sort_unstable();
         ks
         // ks.iter().map(|x| x.as_ref()).collect()
@@ -1607,7 +1609,7 @@ mod test_qs {
     use super::*;
 
     #[test]
-    fn test_can_construct_instance() -> anyhow::Result<()> {
+    fn test_can_construct_instance() {
         let url_1 = "https://abc.com/?a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
         // let q = UrlEncodedData::try_from_full_url(url_1)?;
         // let url = url_lib::Url::parse(url_1)?;
@@ -1621,12 +1623,10 @@ mod test_qs {
         // let mut q = UrlEncodedData::prepare(url_1);
         // let q = q.parse();
         println!("got qs: {}", q);
-
-        Ok(())
     }
 
     #[test]
-    fn test_qs() -> anyhow::Result<()> {
+    fn test_qs() {
         let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
         for s in [
             qs.as_str(),
@@ -1674,7 +1674,7 @@ mod test_qs {
 
             for (k1, v1) in map {
                 let v2 = map_of_multiple_values_expected.get(k1.as_ref()).unwrap();
-                for (i, v2i) in v2.into_iter().enumerate() {
+                for (i, v2i) in v2.iter().enumerate() {
                     assert_eq!(v1[i].as_ref(), *v2i);
                 }
             }
@@ -1724,7 +1724,6 @@ mod test_qs {
                 assert_eq!(&v1, v2);
             }
         }
-        Ok(())
     }
 
     #[test]
