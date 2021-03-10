@@ -139,7 +139,6 @@
 //!
 //! ### example 1
 //! ```rust
-//! use url_encoded_data::*;
 //! use url_encoded_data::stringify;
 //! let encoded = stringify(&[("a", "b"), ("c", "d")]);
 //! assert_eq!(encoded, "a=b&c=d");
@@ -147,7 +146,6 @@
 //!
 //! ### example 2
 //! ```rust
-//! use url_encoded_data::*;
 //! use url_encoded_data::stringify;
 //! let encoded = stringify(&[("hello", "你好"), ("world", "世界")]);
 //! assert_eq!(encoded, "hello=%E4%BD%A0%E5%A5%BD&world=%E4%B8%96%E7%95%8C");
@@ -453,7 +451,6 @@ pub fn split_url_encoded_string(s: &str) -> (&str, &str) {
 ///
 /// ## example 1
 /// ```rust
-/// use url_encoded_data::*;
 /// use url_encoded_data::stringify;
 /// let encoded = stringify(&[("a", "b"), ("c", "d")]);
 /// assert_eq!(encoded, "a=b&c=d");
@@ -461,7 +458,7 @@ pub fn split_url_encoded_string(s: &str) -> (&str, &str) {
 ///
 /// ## example 2
 /// ```rust
-/// use url_encoded_data::*;
+///
 /// use url_encoded_data::stringify;
 /// let encoded = stringify(&[("hello", "你好"), ("world", "世界")]);
 /// assert_eq!(encoded, "hello=%E4%BD%A0%E5%A5%BD&world=%E4%B8%96%E7%95%8C");
@@ -469,7 +466,7 @@ pub fn split_url_encoded_string(s: &str) -> (&str, &str) {
 ///
 /// ## example 3
 /// ```rust
-/// use url_encoded_data::*;
+///
 /// use url_encoded_data::stringify;
 /// let encoded = stringify(&[("foo", "bar & baz"), ("saison", "Été+hiver")]);
 /// assert_eq!(encoded, "foo=bar+%26+baz&saison=%C3%89t%C3%A9%2Bhiver");
@@ -484,7 +481,7 @@ pub fn stringify<'a>(pairs: &'a [StrPair<'a>]) -> String {
     s.finish()
 }
 
-// A scanner iterating (decoded_key, decoded_value) pair in order.
+/// # A scanner which iterates (decoded_key, decoded_value) pairs in order.
 #[derive(Clone)]
 pub struct UrlEncodedDataPairScanner<'a> {
     prefix: &'a str,
@@ -504,7 +501,7 @@ impl<'a> Display for UrlEncodedDataPairScanner<'a> {
     }
 }
 
-/// # Lazy iterator yielding pairs
+/// # Lazy iterator yields pairs
 impl<'a> UrlEncodedDataPairScanner<'a> {
     /// # Iterator of pairs
     ///
@@ -549,7 +546,7 @@ impl<'a> UrlEncodedDataPairScanner<'a> {
     /// # example:
     ///
     /// ```rust
-    /// use url_encoded_data::*;
+    ///
     /// use url_encoded_data::UrlEncodedDataPairScanner;
     /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
     /// for s in [
@@ -590,6 +587,7 @@ impl<'a> UrlEncodedDataPairScanner<'a> {
     }
 }
 
+/// # From str
 impl<'a> From<&'a str> for UrlEncodedDataPairScanner<'a> {
     /// # UrlEncodedDataPairIterator from &str
     /// ```rust
@@ -701,7 +699,7 @@ impl<'a> UrlEncodedData<'a> {
 
     /// # UrlEncodedData from &str
     /// ```rust
-    /// use url_encoded_data::*;
+    /// 
     /// use url_encoded_data::UrlEncodedData;
     /// let q = UrlEncodedData::parse_from_data_str("abcd=efg");
     /// let first_pair = q.iter().next().unwrap();
@@ -735,7 +733,6 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// use url_encoded_data::*;
     /// use url_encoded_data::*;
     /// use url_encoded_data::UrlEncodedData;
     /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
@@ -791,8 +788,6 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// use url_encoded_data::*;
-    /// use url_encoded_data::*;
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "c=3&a=1&b=2&c=4&key_without_value&=value_without_key";
     /// let q = UrlEncodedData::parse_from_data_str(s);
@@ -856,8 +851,8 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// use url_encoded_data::*;
-    /// use url_encoded_data::*;
+    /// 
+    /// 
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "c=3&a=1&b=2&c=4&key_without_value&=value_without_key";
     /// let q = UrlEncodedData::parse_from_data_str(s);
@@ -970,6 +965,20 @@ impl<'a> UrlEncodedData<'a> {
             .collect()
     }
 
+    /// # encode pairs to url-encoded-string
+    /// 
+    /// # example
+    /// ```rust
+    /// use url_encoded_data::stringify;
+    /// let encoded = stringify(&[("a", "b"), ("c", "d")]);
+    /// assert_eq!(encoded, "a=b&c=d");
+    /// ```
+    ///
+    /// ```rust 
+    /// use url_encoded_data::stringify;
+    /// let encoded = stringify(&[("hello", "你好"), ("world", "世界")]);
+    /// assert_eq!(encoded, "hello=%E4%BD%A0%E5%A5%BD&world=%E4%B8%96%E7%95%8C");
+    /// ```
     pub fn stringify(pairs: &Vec<RefPair>) -> String {
         let mut s = url_lib::form_urlencoded::Serializer::new(String::new());
         for (k, v) in pairs.into_iter() {
@@ -1019,9 +1028,7 @@ impl<'a> UrlEncodedData<'a> {
     /// extern crate maplit;
     ///
     /// fn main() {
-    ///     use url_encoded_data::*;
-    ///     use url_encoded_data::*;
-    /// use url_encoded_data::UrlEncodedData;
+    ///     use url_encoded_data::UrlEncodedData;
     ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
     ///     for s in [
     ///         qs.as_str(),
@@ -1068,15 +1075,15 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// use url_encoded_data::*;
-    /// use url_encoded_data::*;
+    /// 
+    /// 
     /// #[macro_use]
     /// extern crate maplit;
     ///
     /// fn main() {
     ///     use std::borrow::Cow;
-    /// use url_encoded_data::UrlEncodedData;
-    /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
+    ///     use url_encoded_data::UrlEncodedData;
+    ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
     ///     for s in [
     ///         qs.as_str(),
     ///         ("https://abc.com/?".to_string() + qs.as_str()).as_str(),
@@ -1139,8 +1146,8 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// use url_encoded_data::*;
-    /// use url_encoded_data::*;
+    /// 
+    /// 
     /// #[macro_use]
     /// extern crate maplit;
     ///
@@ -1197,8 +1204,8 @@ impl<'a> UrlEncodedData<'a> {
     /// extern crate maplit;
     ///
     /// fn main() {
-    ///     use url_encoded_data::*;
-    ///     use url_encoded_data::*;
+    ///     
+    ///     
     ///     use url_encoded_data::UrlEncodedData;
     ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
     ///     let q = UrlEncodedData::parse_from_data_str(qs);
@@ -1253,8 +1260,8 @@ impl<'a> UrlEncodedData<'a> {
     /// extern crate maplit;
     ///
     /// fn main() {
-    ///     use url_encoded_data::*;
-    ///     use url_encoded_data::*;
+    ///     
+    ///     
     ///     use url_encoded_data::UrlEncodedData;
     ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
     ///     let q = UrlEncodedData::parse_from_data_str(qs);
