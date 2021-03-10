@@ -1,6 +1,7 @@
 # url_encoded_data
-create: https://crates.io/crates/url_encoded_data
-doc: https://crates.io/crates/url_encoded_data
+
+* crate: https://crates.io/crates/url_encoded_data
+* doc: https://crates.io/crates/url_encoded_data
 
 ## Ergonomic, Versatile Url-Encoded-Data Manipulator
 Manipulate data of `application/x-www-form-urlencoded` format,
