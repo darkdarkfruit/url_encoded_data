@@ -364,12 +364,12 @@
 extern crate maplit;
 
 use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use url;
 use url as url_lib;
 use url::form_urlencoded::Parse;
-use std::collections::hash_map::Entry;
 
 pub type Pair<'a> = (Cow<'a, str>, Cow<'a, str>);
 // type StringPair = (String, String);
@@ -537,7 +537,7 @@ impl<'a> UrlEncodedDataPairScanner<'a> {
     ///     }
     /// }
     /// ```
-    pub fn iter(&'a self) -> impl Iterator<Item=Pair<'a>> {
+    pub fn iter(&'a self) -> impl Iterator<Item = Pair<'a>> {
         self.pairs_iterator.into_iter()
     }
 
@@ -664,7 +664,11 @@ impl<'a> Display for UrlEncodedData<'a> {
         write!(
             f,
             "prefix: {:?}, old str: {:?}; old keys: {:?}; current map: {:?}; current str: {:?}",
-            self.prefix, self.original_data_str, self.original_keys_in_order, self.map, self.to_string_of_original_order()
+            self.prefix,
+            self.original_data_str,
+            self.original_keys_in_order,
+            self.map,
+            self.to_string_of_original_order()
         )
     }
 }
@@ -699,7 +703,7 @@ impl<'a> UrlEncodedData<'a> {
 
     /// # UrlEncodedData from &str
     /// ```rust
-    /// 
+    ///
     /// use url_encoded_data::UrlEncodedData;
     /// let q = UrlEncodedData::parse_from_data_str("abcd=efg");
     /// let first_pair = q.iter().next().unwrap();
@@ -851,8 +855,8 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// 
-    /// 
+    ///
+    ///
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "c=3&a=1&b=2&c=4&key_without_value&=value_without_key";
     /// let q = UrlEncodedData::parse_from_data_str(s);
@@ -904,7 +908,7 @@ impl<'a> UrlEncodedData<'a> {
 
     /// Yields an iterator with Item = (key, value) pair
     ///  Item = (Cow<'a, str>, Cow<'a, str>)
-    pub fn iter(&'a self) -> impl Iterator<Item=RefPair<'a>> {
+    pub fn iter(&'a self) -> impl Iterator<Item = RefPair<'a>> {
         self.as_pairs().into_iter()
         // // let c = self.as_pairs().iter();
         // self.map.iter().flat_map(|(k, v)| {
@@ -966,7 +970,7 @@ impl<'a> UrlEncodedData<'a> {
     }
 
     /// # encode pairs to url-encoded-string
-    /// 
+    ///
     /// # example
     /// ```rust
     /// use url_encoded_data::stringify;
@@ -974,7 +978,7 @@ impl<'a> UrlEncodedData<'a> {
     /// assert_eq!(encoded, "a=b&c=d");
     /// ```
     ///
-    /// ```rust 
+    /// ```rust
     /// use url_encoded_data::stringify;
     /// let encoded = stringify(&[("hello", "你好"), ("world", "世界")]);
     /// assert_eq!(encoded, "hello=%E4%BD%A0%E5%A5%BD&world=%E4%B8%96%E7%95%8C");
@@ -1075,8 +1079,8 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// 
-    /// 
+    ///
+    ///
     /// #[macro_use]
     /// extern crate maplit;
     ///
@@ -1146,8 +1150,8 @@ impl<'a> UrlEncodedData<'a> {
     /// # example:
     ///
     /// ```rust
-    /// 
-    /// 
+    ///
+    ///
     /// #[macro_use]
     /// extern crate maplit;
     ///
@@ -1335,7 +1339,9 @@ impl<'a> UrlEncodedData<'a> {
     pub fn push(mut self, key: &'a str, value: &'a str) -> Self {
         match self.map.entry(Cow::from(key)) {
             Entry::Occupied(mut entry) => entry.get_mut().push(Cow::from(value)),
-            Entry::Vacant(entry) => { entry.insert(vec![Cow::from(value)]); }
+            Entry::Vacant(entry) => {
+                entry.insert(vec![Cow::from(value)]);
+            }
         }
         self
     }
@@ -1370,7 +1376,6 @@ impl<'a> UrlEncodedData<'a> {
     pub fn mut_done(&'a mut self) -> &'a Self {
         self
     }
-
 
     /// # Get multiple values, same as method: get_multiple_values(key) but return `Option<Vec<&'a str>>` instead
     ///
@@ -1505,10 +1510,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```
     ///
     pub fn len(&self) -> usize {
-        self.map.values()
-            .into_iter()
-            .map(|v| v.len())
-            .sum()
+        self.map.values().into_iter().map(|v| v.len()).sum()
     }
 
     /// # length of keys
@@ -1552,7 +1554,6 @@ impl<'a> UrlEncodedData<'a> {
         self.map.keys().map(|x| x.as_ref()).collect()
     }
 
-
     /// # keys_of_original_order
     ///
     /// # example:
@@ -1594,7 +1595,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```
     ///
     pub fn keys_of_sorted_order(&self) -> Vec<Cow<str>> {
-        let mut ks: Vec<_> = self.map.keys().map(|x|x.clone()).collect();
+        let mut ks: Vec<_> = self.map.keys().map(|x| x.clone()).collect();
         ks.sort_unstable();
         ks
         // ks.iter().map(|x| x.as_ref()).collect()
@@ -1632,7 +1633,7 @@ mod test_qs {
             ("https://abc.com/?".to_string() + qs.as_str()).as_str(),
             ("https://abc.com/?????".to_string() + qs.as_str()).as_str(),
         ]
-            .iter()
+        .iter()
         {
             let q = UrlEncodedData::parse_from_data_str(s);
             // let mut q = UrlEncodedData::prepare(url_1);
