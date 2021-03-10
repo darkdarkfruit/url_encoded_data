@@ -25,7 +25,7 @@
 //!     * keys
 //!     * len // pair length
 //!     * keys_length
-//!     * to_string
+//!     * to_final_string, same to implemented Display. (format!("{}", self)))
 //!
 //!     * // consult doc for more
 //!
