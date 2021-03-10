@@ -3,6 +3,13 @@ name = "url_encoded_data"
 version = "0.5.0"
 authors = ["darkdarkfruit <darkdarkfruit@gmail.com>"]
 edition = "2018"
+description = "Ergonomic, Versatile Url-Encoded-Data Manipulator"
+license = "MIT"
+documentation = "https://docs.rs/url_encoded_data"
+homepage = "https://github.com/darkdarkfruit/url_encoded_data"
+repository = "https://github.com/darkdarkfruit/url_encoded_data.git"
+readme = "README.md"
+keywords = ["url_encoded_data", "url-encoded-data", "encode", "query-string", "form-url-encoded"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
