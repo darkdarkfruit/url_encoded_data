@@ -5,8 +5,9 @@ doc: https://crates.io/crates/url_encoded_data
 ## Ergonomic, Versatile Url-Encoded-Data Manipulator
 Manipulate data of `application/x-www-form-urlencoded` format,
 eg:
-    * query_string of a url (eg: '?a=1&b=2&c=3&c=3&e=5')
-    * http content-type with: `application/x-www-form-urlencoded`
+
+* query_string of a url (eg: '?a=1&b=2&c=3&c=3&e=5')
+* http content-type with: `application/x-www-form-urlencoded`
 
 ## Features:
 * convenient api:
