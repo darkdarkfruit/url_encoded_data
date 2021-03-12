@@ -1,6 +1,6 @@
 # url_encoded_data
 
-![test]https://github.com/darkdarkfruit/python-weed/workflows/Rust/badge.svg
+![test, clippy](https://github.com/darkdarkfruit/url_encoded_data/workflows/Rust/badge.svg)
 
 * crate: https://crates.io/crates/url_encoded_data
 * doc: https://crates.io/crates/url_encoded_data
