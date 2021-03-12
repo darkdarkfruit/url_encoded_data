@@ -2,13 +2,13 @@
 
 * crate: https://crates.io/crates/url_encoded_data
 * doc: https://crates.io/crates/url_encoded_data
+* test coverage: 100% lines covered(2021-03-12)
 
 ## Ergonomic, Versatile Url-Encoded-Data Manipulator
 Manipulate data of `application/x-www-form-urlencoded` format,
 eg:
-
-* query_string of a url (eg: '?a=1&b=2&c=3&c=3&e=5')
-* http content-type with: `application/x-www-form-urlencoded`
+    * query_string of a url (eg: '?a=1&b=2&c=3&c=3&e=5')
+    * http content-type with: `application/x-www-form-urlencoded`
 
 ## Features:
 * convenient api:
@@ -31,7 +31,8 @@ eg:
     * keys
     * len // pair length
     * keys_length
-    * to_string
+    * to_string (to_final_string), same to: `format!("{}", self)`
+    * exists
 
     * // consult doc for more
 
@@ -53,7 +54,7 @@ use url_encoded_data::UrlEncodedData;
 use std::borrow::Cow;
 // note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
 let url = "https://google.com/?q=rust&ei=code";
-let q = UrlEncodedData::parse_from_data_str(url);
+let q = UrlEncodedData::from(url);
 // q.to_string(), best performance, (key, value) pairs are in un-deterministic order.
 assert_eq!(q.to_string_of_original_order(), "https://google.com/?q=rust&ei=code");
 assert_eq!(q.to_string_of_sorted_order(), "https://google.com/?ei=code&q=rust");
@@ -68,27 +69,32 @@ assert_eq!(q.keys_length(), 2);
 assert!(q.keys().contains(&"q"));
 assert!(q.keys().contains(&"ei"));
 
+// exists
+assert!(q.exists("q"));
+assert!(q.exists("ei"));
+
 
 // let's do some manipulation
 let url = "https://google.com/?q=rust&ei=code";
-let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
-let mut q = q; // const -> mut
-
-// set ->
-let q = q.set("vector", &vec!["1", "2"])
-         .set_one("a", "1")
-         .set_one("b", "2")
-         .set_one("hello", "world")
-         .set("whole", &vec!["world", "世界"]) // utf-8, auto encoding and decoding
-         .delete("ei") // ei is deleted
-         .push("b", "3"); // now b is: vec!["1", "2"]
-let q = q; // mut -> const
+let q = UrlEncodedData::parse_str(url)
+            .set_one("q", "rust-lang")
+            .set("vector", &vec!["1", "2"])
+            .set_one("a", "1")
+            .set_one("b", "2")
+            .set_one("hello", "world")
+            .set("whole", &vec!["world", "世界"]) // utf-8, auto encoding and decoding
+            .delete("ei") // ei is deleted
+            .push("b", "3")
+            .done(); // now b is: vec!["1", "2"]
 
 // q.keys() // performant
 assert_eq!(q.keys_of_original_order()[0].as_ref(), "q");
 
 // something like: https://google.com/?b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
-println!("{}", q.to_string());
+println!("{}", q); // calls q.to_final_string() actually.
+
+// something like: https://google.com/?b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+println!("{}", q.to_final_string());
 
 // https://google.com/?q=rust-lang&b=2&b=3&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
 println!("{}", q.to_string_of_original_order());
@@ -103,7 +109,7 @@ use url_encoded_data::UrlEncodedData;
 use std::borrow::Cow;
 // note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
 let s = "b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C";
-let q = UrlEncodedData::parse_from_data_str(s);
+let q = UrlEncodedData::parse_str(s);
 // q.to_string(), best performance, (key, value) pairs are in un-deterministic order.
 assert_eq!(q.to_string_of_original_order(), s);
 
@@ -138,30 +144,28 @@ for (key, value) in q.iter() {
 }
 
 ```
-###
-## Basic apis
 
-### strigify: Stringify pairs to url encoded String
+###  Some apis
 
-#### example 1
+#### strigify: Stringify pairs to url encoded String
+
+##### example 1
 ```rust
-use url_encoded_data::*;
 use url_encoded_data::stringify;
 let encoded = stringify(&[("a", "b"), ("c", "d")]);
 assert_eq!(encoded, "a=b&c=d");
 ```
 
-#### example 2
+##### example 2
 ```rust
-use url_encoded_data::*;
 use url_encoded_data::stringify;
 let encoded = stringify(&[("hello", "你好"), ("world", "世界")]);
 assert_eq!(encoded, "hello=%E4%BD%A0%E5%A5%BD&world=%E4%B8%96%E7%95%8C");
 ```
 
 
-### UrlEncodedDataPairIterator: **Lazy** iterator yielding pairs
-#### example:
+#### UrlEncodedDataPairScanner: **Lazy** iterator yielding pairs only, performant when you only needs pairs in sequence.
+##### example:
 
 ```rust
 use url_encoded_data::*;
@@ -194,8 +198,8 @@ for s in [
 }
 ```
 
-### UrlEncodedData: parse url_encoded_data to pairs eagerly
-#### main methods:
+#### UrlEncodedData: parse url_encoded_data to pairs eagerly
+##### some methods:
 > for string: "a=1&b=2&a=3"
 * as_pairs: ["a", "1"], ["b", "2"], ["c", "3"]
 * as_map_of_single_key_to_multiple_values: {"a": ["1", "3"], "b": ["2"]}
@@ -276,7 +280,7 @@ let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key".to_string();
     ]
         .iter()
     {
-        let q = UrlEncodedData::parse_from_data_str(s);
+        let q = UrlEncodedData::parse_str(s);
         // let mut q = UrlEncodedData::prepare(url_1);
         // let q = q.parse();
         println!("got qs: {}", q);

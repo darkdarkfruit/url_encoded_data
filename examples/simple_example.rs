@@ -13,7 +13,7 @@ fn simple_example() -> anyhow::Result<()> {
     ]
     .iter()
     {
-        let q = UrlEncodedData::parse_from_data_str(s);
+        let q = UrlEncodedData::parse_str(s);
         // let mut q = UrlEncodedData::prepare(url_1);
         // let q = q.parse();
         println!("got qs: {}", q);

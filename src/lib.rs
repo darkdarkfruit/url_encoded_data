@@ -25,7 +25,8 @@
 //!     * keys
 //!     * len // pair length
 //!     * keys_length
-//!     * to_final_string, same to implemented Display. (format!("{}", self)))
+//!     * to_string (to_final_string), same to: `format!("{}", self)`
+//!     * exists
 //!
 //!     * // consult doc for more
 //!
@@ -47,7 +48,7 @@
 //! use std::borrow::Cow;
 //! // note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
 //! let url = "https://google.com/?q=rust&ei=code";
-//! let q = UrlEncodedData::parse_from_data_str(url);
+//! let q = UrlEncodedData::from(url);
 //! // q.to_string(), best performance, (key, value) pairs are in un-deterministic order.
 //! assert_eq!(q.to_string_of_original_order(), "https://google.com/?q=rust&ei=code");
 //! assert_eq!(q.to_string_of_sorted_order(), "https://google.com/?ei=code&q=rust");
@@ -62,24 +63,29 @@
 //! assert!(q.keys().contains(&"q"));
 //! assert!(q.keys().contains(&"ei"));
 //!
+//! // exists
+//! assert!(q.exists("q"));
+//! assert!(q.exists("ei"));
+//!
 //!
 //! // let's do some manipulation
 //! let url = "https://google.com/?q=rust&ei=code";
-//! let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
-//! let mut q = q; // const -> mut
-//!
-//! // set ->
-//! let q = q.set("vector", &vec!["1", "2"])
-//!          .set_one("a", "1")
-//!          .set_one("b", "2")
-//!          .set_one("hello", "world")
-//!          .set("whole", &vec!["world", "世界"]) // utf-8, auto encoding and decoding
-//!          .delete("ei") // ei is deleted
-//!          .push("b", "3"); // now b is: vec!["1", "2"]
-//! let q = q; // mut -> const
+//! let q = UrlEncodedData::parse_str(url)
+//!             .set_one("q", "rust-lang")
+//!             .set("vector", &vec!["1", "2"])
+//!             .set_one("a", "1")
+//!             .set_one("b", "2")
+//!             .set_one("hello", "world")
+//!             .set("whole", &vec!["world", "世界"]) // utf-8, auto encoding and decoding
+//!             .delete("ei") // ei is deleted
+//!             .push("b", "3")
+//!             .done(); // now b is: vec!["1", "2"]
 //!
 //! // q.keys() // performant
 //! assert_eq!(q.keys_of_original_order()[0].as_ref(), "q");
+//!
+//! // something like: https://google.com/?b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+//! println!("{}", q); // calls q.to_final_string() actually.
 //!
 //! // something like: https://google.com/?b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
 //! println!("{}", q.to_final_string());
@@ -97,7 +103,7 @@
 //! use std::borrow::Cow;
 //! // note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
 //! let s = "b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C";
-//! let q = UrlEncodedData::parse_from_data_str(s);
+//! let q = UrlEncodedData::parse_str(s);
 //! // q.to_string(), best performance, (key, value) pairs are in un-deterministic order.
 //! assert_eq!(q.to_string_of_original_order(), s);
 //!
@@ -132,19 +138,19 @@
 //! }
 //!
 //! ```
-//! ##
-//! # Basic apis
 //!
-//! ## strigify: Stringify pairs to url encoded String
+//! ##  Some apis
 //!
-//! ### example 1
+//! ### strigify: Stringify pairs to url encoded String
+//!
+//! #### example 1
 //! ```rust
 //! use url_encoded_data::stringify;
 //! let encoded = stringify(&[("a", "b"), ("c", "d")]);
 //! assert_eq!(encoded, "a=b&c=d");
 //! ```
 //!
-//! ### example 2
+//! #### example 2
 //! ```rust
 //! use url_encoded_data::stringify;
 //! let encoded = stringify(&[("hello", "你好"), ("world", "世界")]);
@@ -152,8 +158,8 @@
 //! ```
 //!
 //!
-//! ## UrlEncodedDataPairIterator: **Lazy** iterator yielding pairs
-//! ### example:
+//! ### UrlEncodedDataPairScanner: **Lazy** iterator yielding pairs only, performant when you only needs pairs in sequence.
+//! #### example:
 //!
 //! ```rust
 //! use url_encoded_data::*;
@@ -186,8 +192,8 @@
 //! }
 //! ```
 //!
-//! ## UrlEncodedData: parse url_encoded_data to pairs eagerly
-//! ### main methods:
+//! ### UrlEncodedData: parse url_encoded_data to pairs eagerly
+//! #### some methods:
 //! > for string: "a=1&b=2&a=3"
 //! * as_pairs: ["a", "1"], ["b", "2"], ["c", "3"]
 //! * as_map_of_single_key_to_multiple_values: {"a": ["1", "3"], "b": ["2"]}
@@ -268,7 +274,7 @@
 //!     ]
 //!         .iter()
 //!     {
-//!         let q = UrlEncodedData::parse_from_data_str(s);
+//!         let q = UrlEncodedData::parse_str(s);
 //!         // let mut q = UrlEncodedData::prepare(url_1);
 //!         // let q = q.parse();
 //!         println!("got qs: {}", q);
@@ -481,6 +487,7 @@ pub fn stringify<'a>(pairs: &'a [StrPair<'a>]) -> String {
 }
 
 /// # A scanner which iterates (decoded_key, decoded_value) pairs in order.
+///
 #[derive(Clone)]
 pub struct UrlEncodedDataPairScanner<'a> {
     prefix: &'a str,
@@ -536,7 +543,7 @@ impl<'a> UrlEncodedDataPairScanner<'a> {
     ///     }
     /// }
     /// ```
-    pub fn iter(&'a self) -> impl Iterator<Item = Pair<'a>> {
+    pub fn iter(&self) -> impl Iterator<Item = Pair<'_>> {
         self.pairs_iterator
     }
 
@@ -602,6 +609,22 @@ impl<'a> From<&'a str> for UrlEncodedDataPairScanner<'a> {
     }
 }
 
+pub struct UrlEncodedDataBuilder<'a>(UrlEncodedData<'a>);
+
+impl<'a> UrlEncodedDataBuilder<'a> {
+    pub fn set_one<'b>(&'b mut self, key: &'a str, value: &'a str) -> &'b mut Self {
+        // self.0.map.insert(Cow::from(key), vec![Cow::from(value)]);
+        // self
+        //
+        self.0.set_one(key, value);
+        self
+    }
+
+    pub fn done(&self) -> UrlEncodedData<'a> {
+        self.0.clone()
+    }
+}
+
 /// Represents the form-urlencoded data: eg: url query string, or application/x-www-form-urlencoded of the body.
 #[derive(Clone, Debug)]
 pub struct UrlEncodedData<'a> {
@@ -648,7 +671,7 @@ impl<'a> From<&'a str> for UrlEncodedData<'a> {
     fn from(s: &'a str) -> Self {
         // Self::prepare(s).parse()
         // unimplemented!()
-        Self::parse_from_data_str(s)
+        Self::parse_str(s)
     }
 }
 
@@ -696,13 +719,13 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     ///
     /// use url_encoded_data::UrlEncodedData;
-    /// let q = UrlEncodedData::parse_from_data_str("abcd=efg");
+    /// let q = UrlEncodedData::parse_str("abcd=efg");
     /// let first_pair = q.iter().next().unwrap();
     /// let (k, v) = first_pair;
     /// assert_eq!(k.as_ref(), "abcd");
     /// assert_eq!(v.as_ref(), "efg");
     /// ```
-    pub fn parse_from_data_str(s: &'a str) -> Self {
+    pub fn parse_str(s: &'a str) -> Self {
         let (prefix, data_str) = split_url_encoded_string(s);
         let parse = url_lib::form_urlencoded::parse(data_str.as_bytes());
         let pairs: Vec<Pair> = parse.into_iter().collect();
@@ -723,6 +746,10 @@ impl<'a> UrlEncodedData<'a> {
         }
     }
 
+    pub fn builder(s: &'a str) -> UrlEncodedDataBuilder {
+        UrlEncodedDataBuilder(Self::parse_str(s))
+    }
+
     /// # As pairs slice in random order, better performance than `as_pairs_of_original_order` and `as_pairs_of_sorted_order`
     ///
     /// # example:
@@ -738,7 +765,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ]
     /// .iter()
     /// {
-    ///     let q = UrlEncodedData::parse_from_data_str(s);
+    ///     let q = UrlEncodedData::parse_str(s);
     ///     // let mut q = UrlEncodedData::prepare(url_1);
     ///     // let q = q.parse();
     ///     println!("got qs: {}", q);
@@ -785,7 +812,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "c=3&a=1&b=2&c=4&key_without_value&=value_without_key";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// // let mut q = UrlEncodedData::prepare(url_1);
     /// // let q = q.parse();
     /// println!("got qs: {}", q);
@@ -850,7 +877,7 @@ impl<'a> UrlEncodedData<'a> {
     ///
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "c=3&a=1&b=2&c=4&key_without_value&=value_without_key";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// // let mut q = UrlEncodedData::prepare(url_1);
     /// // let q = q.parse();
     /// println!("got qs: {}", q);
@@ -934,7 +961,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let qs = "a=1&b=2";
-    /// let q = UrlEncodedData::parse_from_data_str(qs);
+    /// let q = UrlEncodedData::parse_str(qs);
     /// // let mut q = UrlEncodedData::prepare(url_1);
     /// // let q = q.parse();
     /// println!("got qs: {}", q);
@@ -982,11 +1009,12 @@ impl<'a> UrlEncodedData<'a> {
         s.finish()
     }
 
-    /// to final string, same as `print!("{}", self)`
+    /// You can just use `.to_string()` instead. (alloc::string::ToString trait is auto-implemented on `T: fmt::Display + ?Sized`).
+    /// To final string, same as `print!("{}", self)`
     /// ``` rust
     /// use url_encoded_data::UrlEncodedData;
     /// let url = "https://google.com/?q=rust";
-    /// let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
+    /// let q = UrlEncodedData::parse_str(url).set_one("q", "rust-lang").done();
     /// assert_eq!(q.to_final_string(), "https://google.com/?q=rust-lang")
     /// ```
     pub fn to_final_string(&self) -> String {
@@ -997,7 +1025,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ``` rust
     /// use url_encoded_data::UrlEncodedData;
     /// let url = "https://google.com/?q=rust&ei=code";
-    /// let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
+    /// let q = UrlEncodedData::parse_str(url).set_one("q", "rust-lang").done();
     /// assert_eq!(q.to_string_of_original_order(), "https://google.com/?q=rust-lang&ei=code")
     /// ```
     pub fn to_string_of_original_order(&self) -> String {
@@ -1007,7 +1035,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ``` rust
     /// use url_encoded_data::UrlEncodedData;
     /// let url = "https://google.com/?q=rust&ei=code";
-    /// let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
+    /// let q = UrlEncodedData::parse_str(url).set_one("q", "rust-lang").done();
     /// assert_eq!(q.to_string_of_sorted_order(), "https://google.com/?ei=code&q=rust-lang")
     /// ```
     pub fn to_string_of_sorted_order(&self) -> String {
@@ -1032,7 +1060,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_data_str(s);
+    ///         let q = UrlEncodedData::parse_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         //
@@ -1086,7 +1114,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_data_str(s);
+    ///         let q = UrlEncodedData::parse_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         //
@@ -1156,7 +1184,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     ]
     ///     .iter()
     ///     {
-    ///         let q = UrlEncodedData::parse_from_data_str(s);
+    ///         let q = UrlEncodedData::parse_str(s);
     ///         println!("got qs: {}", q);
     ///
     ///         let map_of_last_occurrence_value_expected = hashmap! {
@@ -1203,7 +1231,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     
     ///     use url_encoded_data::UrlEncodedData;
     ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    ///     let q = UrlEncodedData::parse_from_data_str(qs);
+    ///     let q = UrlEncodedData::parse_str(qs);
     ///     println!("got qs: {}", q);
     ///
     ///     assert_eq!(q.get_multiple_values("a").unwrap()[0].as_ref(), "1");
@@ -1232,7 +1260,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// println!("got qs: {}", q);
     ///
     /// assert_eq!(q.get_first_occurrence_value("a").unwrap().as_ref(), "1");
@@ -1259,7 +1287,7 @@ impl<'a> UrlEncodedData<'a> {
     ///     
     ///     use url_encoded_data::UrlEncodedData;
     ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    ///     let q = UrlEncodedData::parse_from_data_str(qs);
+    ///     let q = UrlEncodedData::parse_str(qs);
     ///     println!("got qs: {}", q);
     ///
     ///     assert_eq!(q.get_last_occurrence_value("a").unwrap(), "1");
@@ -1280,11 +1308,11 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    /// let q = UrlEncodedData::parse_from_data_str(qs).set("a", &["100", "200"]);
+    /// let q = UrlEncodedData::parse_str(qs).set("a", &["100", "200"]).done();
     ///
     /// assert_eq!(q.get("a").unwrap(), vec!["100", "200"]);
     /// ```
-    pub fn set(mut self, key: &'a str, value: &[&'a str]) -> Self {
+    pub fn set(&mut self, key: &'a str, value: &[&'a str]) -> &mut Self {
         self.map.insert(
             Cow::from(key),
             value.iter().map(|x| Cow::from(*x)).collect::<Vec<_>>(),
@@ -1299,11 +1327,11 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    /// let q = UrlEncodedData::parse_from_data_str(qs).set_one("a", "100");
+    /// let q = UrlEncodedData::parse_str(qs).set_one("a", "100").done();
     ///
     /// assert_eq!(q.get_first("a").unwrap(), "100");
     /// ```
-    pub fn set_one(mut self, key: &'a str, value: &'a str) -> Self {
+    pub fn set_one<'b>(&'b mut self, key: &'a str, value: &'a str) -> &'b mut Self {
         self.map.insert(Cow::from(key), vec![Cow::from(value)]);
         self
     }
@@ -1315,13 +1343,13 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    /// let q = UrlEncodedData::parse_from_data_str(qs).push("a", "100").push("hello", "world");
+    /// let q = UrlEncodedData::parse_str(qs).push("a", "100").push("hello", "world").done();
     ///
     /// assert_eq!(q.get("a").unwrap(), vec!["1", "100"]);
     /// assert_eq!(q.get("hello").unwrap(), vec!["world"]);
     /// assert_eq!(q.get_first("hello").unwrap(), "world");
     /// ```
-    pub fn push(mut self, key: &'a str, value: &'a str) -> Self {
+    pub fn push(&mut self, key: &'a str, value: &'a str) -> &mut Self {
         match self.map.entry(Cow::from(key)) {
             Entry::Occupied(mut entry) => entry.get_mut().push(Cow::from(value)),
             Entry::Vacant(entry) => {
@@ -1331,36 +1359,26 @@ impl<'a> UrlEncodedData<'a> {
         self
     }
 
-    // pub fn set_one_by_ref_mut(&'a mut self, key: &'a str, value: &'a str) ->  &'a mut Self {
-    //     self.map.insert(Cow::from(key), vec![Cow::from(value)]);
-    //     self
-    // }
-    //
-    // /// # Done setting
-    // ///
-    // /// # example:
-    // ///
-    // /// ```rust
-    // /// fn main() {
-    // ///     use url_encoded_data::UrlEncodedData;
-    // ///     let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    // ///     let mut q = UrlEncodedData::parse_from_data_str(qs).set_one("a", "100").set_one("b", "200").done();
-    // ///
-    // ///     assert_eq!(q.get_first("a").unwrap(), "100");
-    // ///     assert_eq!(q.get_first("b").unwrap(), "200");
-    // /// }
-    // /// ```
-    // pub fn done(&'a mut self) -> &'a Self {
-    //     self
-    // }
+    /// # Done setting
+    ///
+    /// # example:
+    ///
+    /// ```rust
+    /// use url_encoded_data::UrlEncodedData;
+    /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
+    /// let mut q = UrlEncodedData::parse_str(qs).set_one("a", "100").set_one("b", "200").done();
+    ///
+    /// assert_eq!(q.get_first("a").unwrap(), "100");
+    /// assert_eq!(q.get_first("b").unwrap(), "200");
+    /// ```
+    pub fn done(&self) -> Self {
+        // Self::from("")
+        self.clone()
+    }
     //
     // pub fn done2(&'a mut self) -> Self {
     //     self.clone()
     // }
-
-    pub fn mut_done(&'a mut self) -> &'a Self {
-        self
-    }
 
     /// # Get multiple values, same as method: get_multiple_values(key) but return `Option<Vec<&'a str>>` instead
     ///
@@ -1369,7 +1387,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
-    /// let q = UrlEncodedData::parse_from_data_str(qs);
+    /// let q = UrlEncodedData::parse_str(qs);
     /// assert_eq!(q.get("c").unwrap(), vec!["3", "4"]);
     /// ```
     pub fn get<'b>(&'a self, key: &'b str) -> Option<Vec<&'a str>> {
@@ -1390,7 +1408,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// println!("got qs: {}", q);
     ///
     /// assert_eq!(q.get_first("c").unwrap(), "3");
@@ -1410,7 +1428,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// println!("got qs: {}", q);
     ///
     /// assert_eq!(q.get_last("c").unwrap(), "4");
@@ -1430,12 +1448,12 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4&d=5";
-    /// let mut  q = UrlEncodedData::parse_from_data_str(s);
+    /// let mut  q = UrlEncodedData::parse_str(s);
     /// println!("got qs: {}", q);
     ///
     /// assert_eq!(q.get_first("c").unwrap(), "3");
     /// assert_eq!(q.get_last("c").unwrap(), "4");
-    /// q = q.delete("c").delete("b").delete("a");
+    /// q.delete("c").delete("b").delete("a");
     /// assert_eq!(q.get("c"), None);
     /// assert_eq!(q.get_first("c"), None);
     /// assert_eq!(q.get_last("c"), None);
@@ -1446,7 +1464,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```
     ///
     // pub fn delete<'b>(&'a mut self, key: &'a str) -> Option<Vec<Cow<'a, str>>> {
-    pub fn delete(mut self, key: &'a str) -> Self {
+    pub fn delete(&mut self, key: &'a str) -> &mut Self {
         self.map.remove(&Cow::from(key));
         self
     }
@@ -1458,7 +1476,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4&d=5";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// assert_eq!(q.len(), 5);
     /// assert_eq!(q.keys_length(), 4);
     /// let q = q.clear();
@@ -1484,7 +1502,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4&d=5";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// assert_eq!(q.len(), 5);
     /// assert_eq!(q.keys_length(), 4);
     /// let q = q.clear();
@@ -1503,7 +1521,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4&d=5";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// assert_eq!(q.len(), 5);
     /// assert_eq!(q.keys_length(), 4);
     /// let q = q.clear();
@@ -1522,7 +1540,7 @@ impl<'a> UrlEncodedData<'a> {
     /// ```rust
     /// use url_encoded_data::UrlEncodedData;
     /// let s = "a=1&b=2&c=3&c=4&d=5";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// assert!(!q.is_empty());
     /// let mut q = q; // const -> mut
     /// let q = q.clear();
@@ -1542,7 +1560,7 @@ impl<'a> UrlEncodedData<'a> {
     /// use url_encoded_data::UrlEncodedData;
     /// use std::borrow::Cow;
     /// let s = "c=3&b=2&a=1&c=4&d=5";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// let keys = q.keys();
     /// assert!(keys.contains(&"a"));
     /// assert!(keys.contains(&"b"));
@@ -1556,6 +1574,26 @@ impl<'a> UrlEncodedData<'a> {
         self.map.keys().map(|x| x.as_ref()).collect()
     }
 
+    /// # Is key exists?
+    ///
+    /// # example:
+    ///
+    /// ```rust
+    /// use url_encoded_data::UrlEncodedData;
+    /// use std::borrow::Cow;
+    /// let s = "c=3&b=2&a=1&c=4&d=5";
+    /// let q = UrlEncodedData::parse_str(s);
+    /// assert!(q.exists("c"));
+    /// assert!(q.exists("b"));
+    /// assert!(q.exists("a"));
+    /// assert!(q.exists("d"));
+    /// assert!(!q.exists("e"));
+    /// ```
+    ///
+    pub fn exists(&self, key: &str) -> bool {
+        self.map.contains_key(&Cow::from(key))
+    }
+
     /// # keys_of_original_order
     ///
     /// # example:
@@ -1564,7 +1602,7 @@ impl<'a> UrlEncodedData<'a> {
     /// use url_encoded_data::UrlEncodedData;
     /// use std::borrow::Cow;
     /// let s = "c=3&b=2&a=1&c=4&d=5";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// let keys = q.keys();
     /// assert_eq!(q.keys_of_original_order(), vec!["c", "b", "a", "d"]);
     /// ```
@@ -1591,7 +1629,7 @@ impl<'a> UrlEncodedData<'a> {
     /// use url_encoded_data::UrlEncodedData;
     /// use std::borrow::Cow;
     /// let s = "c=3&b=2&a=1&c=4&d=5";
-    /// let q = UrlEncodedData::parse_from_data_str(s);
+    /// let q = UrlEncodedData::parse_str(s);
     /// let keys = q.keys();
     /// assert_eq!(q.keys_of_sorted_order(), vec!["a", "b", "c", "d"]);
     /// ```
@@ -1610,6 +1648,11 @@ mod test_qs {
 
     #[test]
     fn test_can_construct_instance() {
+        let scanner = UrlEncodedDataPairScanner::from("a=b");
+        for (k, v) in scanner.iter() {
+            println!("{}:{} ", k, v);
+        }
+
         let url_1 = "https://abc.com/?a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
         // let q = UrlEncodedData::try_from_full_url(url_1)?;
         // let url = url_lib::Url::parse(url_1)?;
@@ -1619,7 +1662,7 @@ mod test_qs {
         // println!("got qs: {}", q);
 
         // let mut q = UrlEncodedData::from(url_1);
-        let q = UrlEncodedData::parse_from_data_str(url_1);
+        let q = UrlEncodedData::parse_str(url_1);
         // let mut q = UrlEncodedData::prepare(url_1);
         // let q = q.parse();
         println!("got qs: {}", q);
@@ -1635,7 +1678,7 @@ mod test_qs {
         ]
         .iter()
         {
-            let q = UrlEncodedData::parse_from_data_str(s);
+            let q = UrlEncodedData::parse_str(s);
             // let mut q = UrlEncodedData::prepare(url_1);
             // let q = q.parse();
             println!("got qs: {}", q);
@@ -1727,6 +1770,71 @@ mod test_qs {
     }
 
     #[test]
+    fn test_builder_pattern() {
+        // note: the library will not check the validity of the url, it just searchs for url-encoded-data, eg: string after first '?' and then s.trim_start('?')
+        let url = "https://google.com/?q=rust&ei=code";
+        let q = UrlEncodedData::parse_str(url);
+        // q.to_string(), best performance, (key, value) pairs are in un-deterministic order.
+        assert_eq!(
+            q.to_string_of_original_order(),
+            "https://google.com/?q=rust&ei=code"
+        );
+        assert_eq!(
+            q.to_string_of_sorted_order(),
+            "https://google.com/?ei=code&q=rust"
+        );
+
+        // pairs length
+        assert_eq!(q.len(), 2);
+
+        // keys length
+        assert_eq!(q.keys_length(), 2);
+
+        // keys
+        assert!(q.keys().contains(&"q"));
+        assert!(q.keys().contains(&"ei"));
+
+        // let's do some manipulation
+        let url = "https://google.com/?q=rust&ei=code";
+        // let q = UrlEncodedData::parse_from_data_str(url).set_one("q", "rust-lang");
+        // set ->
+        let q = UrlEncodedData::parse_str(url)
+            .set_one("q", "rust-lang")
+            .set("vector", &["1", "2"])
+            .set_one("a", "1")
+            .set_one("b", "2")
+            .set_one("hello", "world")
+            .set("whole", &["world", "世界"]) // utf-8, auto encoding and decoding
+            .delete("ei") // ei is deleted
+            .push("b", "3")
+            .done(); // now b is: vec!["1", "2"]
+
+        // q.keys() // performant version of getting keys
+
+        // q.keys_of_original_order
+        assert_eq!(q.keys_of_original_order()[0].as_ref(), "q"); // try retaining original order
+
+        // something like: https://google.com/?b=2&b=3&q=rust-lang&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+        println!("{}", q.to_final_string());
+
+        // https://google.com/?q=rust-lang&b=2&b=3&a=1&hello=world&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+        println!("{}", q.to_string_of_original_order());
+
+        // https://google.com/?a=1&b=2&b=3&hello=world&q=rust-lang&vector=1&vector=2&whole=world&whole=%E4%B8%96%E7%95%8C
+        println!("{}", q.to_string_of_sorted_order());
+    }
+
+    #[test]
+    fn test_to_string() {
+        let scanner = UrlEncodedDataPairScanner::from("a=b");
+        println!("{}", scanner.to_string());
+
+        // test clone, then 100% test coverage.
+        let scanner_clone = scanner.clone();
+        println!("{}", scanner_clone.to_string())
+    }
+
+    #[test]
     fn test_done() {
         let qs = "a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
         // let q = UrlEncodedData::parse_from_data_str(qs)
@@ -1734,9 +1842,19 @@ mod test_qs {
         //     .set_one("b", "200")
         //     .done();
 
-        let q = UrlEncodedData::parse_from_data_str(qs)
+        // let q = UrlEncodedData::parse_from_data_str(qs)
+        //     .set_one("a", "100")
+        //     .set_one("b", "200")
+        //     .done();
+        //
+
+        // try builder wrapper
+        println!("using builder wrapper pattern");
+        let q = UrlEncodedData::builder(qs)
             .set_one("a", "100")
-            .set_one("b", "200");
+            .set_one("b", "200")
+            .done();
+
         // let q = UrlEncodedData::parse_from_data_str(qs).set_one_by_ref_mut("a", "20").done2();
         // let q = UrlEncodedData::parse_from_data_str(qs).set_one("a", "20").done2();
 
@@ -1747,12 +1865,12 @@ mod test_qs {
     #[test]
     fn test_delete() {
         let s = "a=1&b=2&c=3&c=4";
-        let mut q = UrlEncodedData::parse_from_data_str(s);
+        let mut q = UrlEncodedData::parse_str(s);
         println!("got qs: {}", q);
 
         assert_eq!(q.get_first("c").unwrap(), "3");
         assert_eq!(q.get_last("c").unwrap(), "4");
-        q = q.delete("c");
+        q.delete("c");
         println!("got qs: {}", q);
         assert_eq!(q.get("c"), None);
         assert_eq!(q.get_first("c"), None);
