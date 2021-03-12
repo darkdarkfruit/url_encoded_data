@@ -7,12 +7,15 @@
 * test coverage: 100% lines covered(by grcov, 2021-03-12)
 
 ## Ergonomic, Versatile Url-Encoded-Data Manipulator
+
 Manipulate data of `application/x-www-form-urlencoded` format,
 eg:
-    * query_string of a url (eg: '?a=1&b=2&c=3&c=3&e=5')
-    * http content-type with: `application/x-www-form-urlencoded`
+
+* query_string of a url (eg: '?a=1&b=2&c=3&c=3&e=5')
+* http content-type with: `application/x-www-form-urlencoded`
 
 ## Features:
+
 * convenient api:
     * as_pairs
     * as_pairs_of_original_order
@@ -42,10 +45,12 @@ eg:
 
 
 ## Terminology
+
 * Pair: a (key, format) tuple, `(Cow<'a, str>, Cow<'a, str>)`
 * url encoded string: a string which is encoded by standards of `application/x-www-form-urlencoded`
 
 ## Notes
+
 * UrlEncodedDataPairScanner: Pairs Iterator, yields pairs only. (high performant)
 * UrlEncodedData: eager version
 
@@ -105,7 +110,9 @@ println!("{}", q.to_string_of_original_order());
 println!("{}", q.to_string_of_sorted_order());
 
 ```
+
 ### Sample of encoded data in www/x-www-form-urlencoded
+
 ```rust
 use url_encoded_data::UrlEncodedData;
 use std::borrow::Cow;
@@ -131,6 +138,7 @@ println!("{:?}", q.as_map_of_single_key_to_last_occurrence_value());
 ```
 
 ### Sample of performant pairs iterator: UrlEncodedDataPairScanner (Lazy version)
+
 ```rust
 use url_encoded_data::{UrlEncodedData, UrlEncodedDataPairScanner};
 use std::borrow::Cow;
@@ -167,6 +175,7 @@ assert_eq!(encoded, "hello=%E4%BD%A0%E5%A5%BD&world=%E4%B8%96%E7%95%8C");
 
 
 #### UrlEncodedDataPairScanner: **Lazy** iterator yielding pairs only, performant when you only needs pairs in sequence.
+
 ##### example:
 
 ```rust
@@ -201,6 +210,7 @@ for s in [
 ```
 
 #### UrlEncodedData: parse url_encoded_data to pairs eagerly
+
 ##### some methods:
 > for string: "a=1&b=2&a=3"
 * as_pairs: ["a", "1"], ["b", "2"], ["c", "3"]
