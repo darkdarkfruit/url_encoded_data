@@ -4,7 +4,7 @@
 
 * crate: https://crates.io/crates/url_encoded_data
 * doc: https://crates.io/crates/url_encoded_data
-* test coverage: 100% lines covered(2021-03-12)
+* test coverage: 100% lines covered(by grcov, 2021-03-12)
 
 ## Ergonomic, Versatile Url-Encoded-Data Manipulator
 Manipulate data of `application/x-www-form-urlencoded` format,
