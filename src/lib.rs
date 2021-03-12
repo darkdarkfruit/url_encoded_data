@@ -658,6 +658,21 @@ pub struct UrlEncodedData<'a> {
 //     }
 // }
 
+/// # global fn: from &str
+/// ```rust
+/// use url_encoded_data::from;
+/// let q = from("abcd=efg");
+/// assert!(q.exists("abcd"));
+/// assert!(q.exists("abcd"));
+/// let first_pair = q.iter().next().unwrap();
+/// let (k, v) = first_pair;
+/// assert_eq!(k.as_ref(), "abcd");
+/// assert_eq!(v.as_ref(), "efg");
+/// ```
+pub fn from(s: &str) -> UrlEncodedData<'_> {
+    UrlEncodedData::from(s)
+}
+
 impl<'a> From<&'a str> for UrlEncodedData<'a> {
     /// # UrlEncodedData from &str
     /// ```rust
