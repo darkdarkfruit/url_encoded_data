@@ -1,5 +1,7 @@
 # url_encoded_data
 
+![test]https://github.com/darkdarkfruit/python-weed/workflows/Rust/badge.svg
+
 * crate: https://crates.io/crates/url_encoded_data
 * doc: https://crates.io/crates/url_encoded_data
 * test coverage: 100% lines covered(2021-03-12)
