@@ -3,7 +3,7 @@
 ![test, clippy](https://github.com/darkdarkfruit/url_encoded_data/workflows/Rust/badge.svg)
 
 * crate: https://crates.io/crates/url_encoded_data
-* doc: https://crates.io/crates/url_encoded_data
+* doc: https://docs.rs/url_encoded_data
 * test coverage: 100% lines covered(by grcov, 2021-03-12)
 
 ## Ergonomic, Versatile Url-Encoded-Data Manipulator
