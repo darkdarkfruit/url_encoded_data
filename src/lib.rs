@@ -1668,6 +1668,20 @@ mod test_qs {
             println!("{}:{} ", k, v);
         }
 
+        // a=b+c, '+' will be replaced with ' ', actually, by design, '+' in url is used for ' '. Want '+', use '%2b' instead.
+        // outputs: a: b c
+        let scanner = UrlEncodedDataPairScanner::from("a=b+c");
+        for (k, v) in scanner.iter() {
+            println!("{}:{} ", k, v);
+        }
+
+        // a=b+c
+        // outputs: a: b+c
+        let scanner = UrlEncodedDataPairScanner::from("a=b%2bc");
+        for (k, v) in scanner.iter() {
+            println!("{}:{} ", k, v);
+        }
+
         let url_1 = "https://abc.com/?a=1&b=2&c=3&c=4&key_without_value&=value_without_key";
         // let q = UrlEncodedData::try_from_full_url(url_1)?;
         // let url = url_lib::Url::parse(url_1)?;
